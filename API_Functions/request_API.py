@@ -59,6 +59,42 @@ def set_Register(chamber, partNum, serie, leak, user=7172, state=0, retries=3, t
     logging.error("Fallaron todos los intentos, no se pudo registrar el dato")
     return False
 
+def remove_Register(chamber, partNum, serie, date, estado=0, retries=3, timeout=3):
+    url = 'http://10.1.0.187:8086/registros/estado'
+    data = {
+        "codigo": str(partNum),
+        "serie": serie,
+        "cabina": chamber,
+        "fecha": str(date),
+        "nuevo_estado": estado
+    }
+
+    headers = {
+        'accept': 'application/json',
+        'Content-Type': 'application/json'
+    }
+
+    for attempt in range(1, retries + 1):
+        try:
+            response = requests.post(url, headers=headers, json=data, timeout=timeout)
+
+            # Si la respuesta es exitosa
+            if response.status_code == 201:
+                logging.info(f"Registro exitoso: {response.json()}")
+                return True
+            else:
+                logging.warning(f"Intento {attempt}/{retries} - Error {response.status_code}: {response.text}")
+
+        except Timeout:
+            logging.error(f"Intento {attempt}/{retries} - Error: Tiempo de espera agotado (timeout={timeout}s)")
+        except ConnectionError:
+            logging.error(f"Intento {attempt}/{retries} - Error: No se pudo conectar con la API. Verificar red/WIFI")
+        except RequestException as e:
+            logging.error(f"Intento {attempt}/{retries} - Error inesperado en la solicitud: {e}")
+
+    logging.error("Fallaron todos los intentos, no se pudo registrar el dato")
+    return False
+
 def Get_totalCores(partNum):
     try:
         url = f"http://10.1.0.187:8086/registros/{partNum}/?consulta=total"

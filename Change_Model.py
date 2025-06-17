@@ -7,7 +7,7 @@ from PIL import Image
 import io
 import requests
 
-from API_Functions.request_API import set_Register
+from API_Functions.request_API import set_Register, remove_Register
 from Loggin.Loggin_Class import *
 from PySide6.QtCore import Slot, QCoreApplication, QTimer, QObject, QEvent, QPropertyAnimation, QEasingCurve
 from PySide6.QtGui import QPixmap, Qt, QKeyEvent
@@ -441,6 +441,9 @@ class Label_Edit(QMainWindow):
                 # Obtiene los valores actuales de la Etiqueta
                 partNo, serialNumber, station, year, month, day, format_date, leak_rate = self._extract_label_data(self.CodeRadd)
 
+                # crea una variable para guardar la estacion actual en entero numerico
+                _station = int(station)
+
                 # Convierte el serial en base 36
                 _serial = int(serialNumber, 36)
 
@@ -463,25 +466,31 @@ class Label_Edit(QMainWindow):
                     # Crea el nuevo DMC de la etiqueta
                     new_label = self.Printer.createDMC(new_partNo, _serial, line, leak_rate, date)
 
-                    # Verifica la conexion con el servidor
-                    if self.server_status == 1 and self.Servercontrol == 1:
-                        try:
-                            # Envia al servidor el numero dado de baja en el servidor
-                            set_Register(station, partNo, serialNumber, "0.00", 7172, 0)
-
-                            # Envia al servidor el numero que sera dado de alta en eel servidor
-                            set_Register(station, new_partNo, serialNumber, "0.00", 7172, line)
-
-                        except Exception as e:
-                            print("Error al enviar datos al servidor")
-                            self._show_error("SERVIDOR", "Error al enviar los datos al servidor")
-
                     # Guarda en la base de datos la etiqueta leida y la etiqueta generada
                     self.DataBase.addlabel(self.DataBase.Device_Table, self.CodeRadd, new_label[0])
 
                     # Actualiza el label con la nueva etiqueta si esta disponible el internet.
                     if self.Wifi_status == 1:
                         self._updateLabel_API_ZPL(new_label[0], 2)
+
+                    # Verifica la conexion con el servidor
+                    if self.server_status == 1 and self.Servercontrol == 1:
+                            try:
+                                # Reorganizar a formato YYYYDDMM
+                                _date = format_date[4:] + format_date[:2] + format_date[2:4]
+
+                                # Convierte en string el numero serial y lo rellena con ceros 7 digitos en total
+                                _serial_string = str(_serial).zfill(7)
+
+                                # Envia al servidor el numero dado de baja
+                                remove_Register(_station, partNo, _serial_string, _date)
+
+                                # Envia al servidor el numero que sera dado de alta en el servidor
+                                set_Register(line, new_partNo, _serial_string, leak_rate, 7172, 2)
+
+                            except Exception as e:
+                                print("Error al enviar datos al servidor")
+                                self._show_error("SERVIDOR", "Error al enviar los datos al servidor")
 
                     # Envia a imprimir la Etiqueta, en ndate esta la fecha y hora de la etiqueta escaneada solo que se manda en lugar del valor de fuga
                     self.Printer.Print_Request(new_partNo, _serial, line, leak_rate, date)
